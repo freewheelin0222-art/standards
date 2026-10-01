@@ -47,7 +47,7 @@ button, input, select { font: inherit; color: inherit; }
 .controls input, .controls select {
   width: 100%; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper);
 }
-.pchips { display: flex; flex-wrap: wrap; gap: 6px; margin: -8px 0 20px; }
+.pchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
 .pchips a { font-size: 13px; border: 1px solid var(--rule); border-radius: 6px; padding: 2px 8px; text-decoration: none; }
 .pchips a:hover { background: var(--hover); }
 .pchips b { color: var(--pencil); margin-left: 4px; }
@@ -86,7 +86,10 @@ button, input, select { font: inherit; color: inherit; }
 .sym { font: 25px/1.1 "Patrick Hand", "Zen Kaku Gothic New", sans-serif; white-space: nowrap; }
 .deg { font: 17px/1.2 "Patrick Hand", "Zen Kaku Gothic New", sans-serif; color: var(--pencil); white-space: nowrap; }
 .fn { font-size: 11px; color: var(--pencil); white-space: nowrap; }
-.hide-fn .fn { display: none; }
+.hide-fn .fn, .hide-deg .deg { display: none; }
+.hide-fn.hide-deg .bar { min-height: 52px; }
+.base-hidden .basesel { display: none; }
+.info { margin-top: 32px; padding-top: 4px; }
 
 /* 類似曲 */
 h3 { font-size: 18px; margin: 36px 0 10px; }
@@ -128,7 +131,7 @@ h3 { font-size: 18px; margin: 36px 0 10px; }
 <script>
 // データは analyzed.json と similar.json を同じフォルダに置いて読み込む。
 // （プレビュー用には window.__DATA__ に埋め込んだ版を使う）
-const state = { songs: [], patterns: [], patById: {}, byId: {}, similar: {}, relView: false, showFn: true };
+const state = { songs: [], patterns: [], patById: {}, byId: {}, similar: {}, relView: false, showDeg: false, showFn: false, lastId: null };
 
 async function load() {
   if (window.__DATA__) return window.__DATA__;
@@ -214,22 +217,29 @@ function renderDetail(id) {
     <a class="back" href="#/">← 一覧に戻る</a>
     <h2>${star(s)}${esc(s.title)}${s.kurohon ? `<span class="kuro">黒本${s.kurohon.join("・")}</span>` : ""}</h2>
     <p class="composer">${esc((s.composer || []).join(", "))}</p>
-    <dl class="facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
-    ${chips ? `<div class="pchips">${chips}</div>` : ""}
-    <div class="toolbar">
-      ${minor ? `<span>度数の基準
-        <span class="seg"><button data-rel="0" aria-pressed="${!rel}">主音</button><button data-rel="1" aria-pressed="${rel}">平行長調</button></span></span>` : ""}
+    <div class="toolbar${state.showDeg || state.showFn ? "" : " base-hidden"}" id="toolbar">
+      <label><input type="checkbox" id="degToggle" ${state.showDeg ? "checked" : ""}> 度数を表示</label>
       <label><input type="checkbox" id="fnToggle" ${state.showFn ? "checked" : ""}> 機能を表示</label>
+      ${minor ? `<span class="basesel">基準
+        <span class="seg"><button data-rel="0" aria-pressed="${!rel}">主音</button><button data-rel="1" aria-pressed="${rel}">平行長調</button></span></span>` : ""}
     </div>
-    <div class="${state.showFn ? "" : "hide-fn"}" id="chart">${sections}</div>
+    <div class="${state.showDeg ? "" : "hide-deg"} ${state.showFn ? "" : "hide-fn"}" id="chart">${sections}</div>
+    <section class="info">
+      <h3>この曲の情報</h3>
+      <dl class="facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
+      ${chips ? `<div class="pchips">${chips}</div>` : ""}
+    </section>
     <h3>進行が似ている曲</h3><ul class="similar">${simHtml}</ul>
   </div>`;
-  $("detail").scrollTop = 0;
+  if (state.lastId !== id) $("detail").scrollTop = 0;  // 曲が変わったときだけ先頭へ
+  state.lastId = id;
   $("detail").querySelectorAll("[data-rel]").forEach(b => b.onclick = () => { state.relView = b.dataset.rel === "1"; renderDetail(id); });
   $("detail").querySelectorAll("[data-pat]").forEach(a => a.onclick = e => {
     e.preventDefault(); $("pat").value = a.dataset.pat; $("q").value = ""; $("form").value = ""; renderList();
   });
-  $("fnToggle").onchange = e => { state.showFn = e.target.checked; $("chart").classList.toggle("hide-fn", !state.showFn); };
+  const syncToolbar = () => $("toolbar").classList.toggle("base-hidden", !(state.showDeg || state.showFn));
+  $("degToggle").onchange = e => { state.showDeg = e.target.checked; $("chart").classList.toggle("hide-deg", !state.showDeg); syncToolbar(); };
+  $("fnToggle").onchange = e => { state.showFn = e.target.checked; $("chart").classList.toggle("hide-fn", !state.showFn); syncToolbar(); };
 }
 
 const currentId = () => (location.hash.match(/^#\/song\/(.+)$/) || [])[1];

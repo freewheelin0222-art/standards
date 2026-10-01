@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jazz Standards 進行ブラウザ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* 色：譜面はインク、分析は赤鉛筆 */
+:root {
+  --paper: #FCFCFA; --panel: #F2F3F5; --ink: #1D2433; --sub: #5E6678;
+  --rule: #D9DCE3; --pencil: #B8322A; --hover: #E8EAEE;
+  color-scheme: light;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #171B24; --panel: #1F2430; --ink: #E6E8EE; --sub: #9AA2B4;
+    --rule: #333A48; --pencil: #F07A6C; --hover: #2A303D; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #171B24; --panel: #1F2430; --ink: #E6E8EE; --sub: #9AA2B4;
+  --rule: #333A48; --pencil: #F07A6C; --hover: #2A303D; color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0; height: 100%; background: var(--paper); color: var(--ink);
+  font: 15px/1.6 "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif;
+}
+a { color: inherit; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--pencil); outline-offset: 2px; }
+
+.app { display: grid; grid-template-columns: 340px 1fr; height: 100%; }
+.list-pane { border-right: 1px solid var(--rule); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+.detail-pane { overflow-y: auto; min-height: 0; }
+
+/* 一覧 */
+.controls { padding: 16px; display: grid; gap: 8px; border-bottom: 1px solid var(--rule); }
+.controls h1 { font-size: 17px; margin: 0 0 4px; }
+.controls input, .controls select {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper);
+}
+.pchips { display: flex; flex-wrap: wrap; gap: 6px; margin: -8px 0 20px; }
+.pchips a { font-size: 13px; border: 1px solid var(--rule); border-radius: 6px; padding: 2px 8px; text-decoration: none; }
+.pchips a:hover { background: var(--hover); }
+.pchips b { color: var(--pencil); margin-left: 4px; }
+.count { font-size: 12px; color: var(--sub); }
+.songs { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+.songs a { display: block; padding: 10px 16px; text-decoration: none; border-bottom: 1px solid var(--rule); }
+.songs a:hover, .songs a[aria-current="page"] { background: var(--hover); }
+.songs .t { font-weight: 700; }
+.songs .m { font-size: 12px; color: var(--sub); }
+.songs .group { padding: 6px 16px; font-size: 12px; font-weight: 700; color: var(--sub); background: var(--paper); border-bottom: 1px solid var(--rule); position: sticky; top: 0; }
+.star { color: #C9A227; }
+.kuro { font-size: 13px; color: var(--sub); font-weight: 400; margin-left: 8px; }
+
+/* 詳細 */
+.detail { max-width: 920px; padding: 24px 28px 64px; }
+.back { display: none; margin-bottom: 12px; font-size: 14px; }
+.detail h2 { font-size: 28px; margin: 0; line-height: 1.3; }
+.composer { color: var(--sub); margin: 2px 0 16px; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0 0 20px; padding: 0; }
+.facts div { font-size: 13px; }
+.facts dt { color: var(--sub); display: inline; }
+.facts dd { display: inline; margin: 0 0 0 6px; font-weight: 700; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-bottom: 12px; font-size: 13px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; background: none; padding: 4px 10px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+/* 譜面：Real Book風の手書きコード */
+.section { margin: 18px 0 6px; display: flex; align-items: baseline; gap: 10px; }
+.mark { font: 22px/1 "Patrick Hand", "Zen Kaku Gothic New", sans-serif; border: 2px solid var(--ink); padding: 2px 7px; min-width: 32px; text-align: center; }
+.stype { font-size: 12px; color: var(--sub); }
+.chart-wrap { overflow-x: auto; }
+.bars { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); border-left: 2px solid var(--ink); }
+.bar { border-right: 1px solid var(--ink); border-bottom: 1px solid var(--rule); padding: 6px 8px 8px; display: flex; gap: 10px; min-height: 76px; }
+.ch { flex: 1; min-width: 0; }
+.sym { font: 25px/1.1 "Patrick Hand", "Zen Kaku Gothic New", sans-serif; white-space: nowrap; }
+.deg { font: 17px/1.2 "Patrick Hand", "Zen Kaku Gothic New", sans-serif; color: var(--pencil); white-space: nowrap; }
+.fn { font-size: 11px; color: var(--pencil); white-space: nowrap; }
+.hide-fn .fn { display: none; }
+
+/* 類似曲 */
+h3 { font-size: 18px; margin: 36px 0 10px; }
+.similar { list-style: none; margin: 0; padding: 0; }
+.similar li { padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.similar .top { display: flex; align-items: baseline; gap: 12px; }
+.similar a { font-weight: 700; }
+.score { font-size: 12px; color: var(--sub); }
+.pats { font: 17px/1.4 "Patrick Hand", "Zen Kaku Gothic New", sans-serif; color: var(--pencil); }
+.empty { color: var(--sub); padding: 40px 28px; }
+
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; }
+  .app.show-detail .list-pane { display: none; }
+  .app:not(.show-detail) .detail-pane { display: none; }
+  .back { display: inline-block; }
+  .detail { padding: 16px 16px 48px; }
+  .detail h2 { font-size: 23px; }
+  .bars { grid-template-columns: repeat(4, minmax(84px, 1fr)); }
+  .sym { font-size: 20px; } .deg { font-size: 15px; }
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="list-pane">
+    <div class="controls">
+      <h1>Jazz Standards 進行ブラウザ</h1>
+      <input id="q" type="search" placeholder="曲名で検索" aria-label="曲名で検索">
+      <select id="pat" aria-label="進行で探す"><option value="">進行：すべて</option></select>
+      <select id="form" aria-label="フォームで探す"><option value="">フォーム：すべて</option></select>
+      <div class="count" id="count"></div>
+    </div>
+    <ul class="songs" id="songs"></ul>
+  </aside>
+  <main class="detail-pane" id="detail"><p class="empty">データを読み込んでいます…</p></main>
+</div>
+
+<script>
+// データは analyzed.json と similar.json を同じフォルダに置いて読み込む。
+// （プレビュー用には window.__DATA__ に埋め込んだ版を使う）
+const state = { songs: [], patterns: [], patById: {}, byId: {}, similar: {}, relView: false, showFn: true };
+
+async function load() {
+  if (window.__DATA__) return window.__DATA__;
+  const [a, s] = await Promise.all([fetch("analyzed.json"), fetch("similar.json")]);
+  if (!a.ok || !s.ok) throw new Error("analyzed.json と similar.json が index.html と同じフォルダにあるか確認してください。");
+  return { analyzed: await a.json(), similar: await s.json() };
+}
+
+// 表示用：b/# を ♭/♯ に
+const pretty = s => s
+  .replace(/^([A-G])b/, "$1♭").replace(/^([A-G])#/, "$1♯")
+  .replace(/\/([A-G])b/, "/$1♭").replace(/\/([A-G])#/, "/$1♯")
+  .replace(/(^|\/|– )b(?=[IV])/g, "$1♭").replace(/(^|\/|– )#(?=[IV])/g, "$1♯")
+  .replace(/b(\d)/g, "♭$1").replace(/#(\d)/g, "♯$1");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const $ = id => document.getElementById(id);
+
+// 並べ替え用：先頭・末尾の冠詞（The, A）を無視してアルファベット順に
+const sortKey = t => t.toLowerCase().replace(/^(the|a|an)\s+/, "").replace(/,\s*(the|a|an)$/, "");
+const byTitle = (a, b) => sortKey(a.title).localeCompare(sortKey(b.title));
+const star = s => s.kurohon ? '<span class="star" title="黒本収録">★</span> ' : "";
+
+function renderList() {
+  const q = $("q").value.trim().toLowerCase(), pat = $("pat").value, form = $("form").value;
+  let list = state.songs.filter(s => (!q || s.title.toLowerCase().includes(q))
+    && (!pat || s.features.patterns_per32[pat])
+    && (!form || (form === "_other" ? !state.mainForms.has(s.features.form) : s.features.form === form)));
+  // 並び順：黒本収録曲 → それ以外。進行を選んだときは各グループ内で回数の多い順、それ以外はアルファベット順
+  const within = pat && pat !== "blues"
+    ? (a, b) => b.features.patterns_per32[pat] - a.features.patterns_per32[pat] || byTitle(a, b)
+    : byTitle;
+  const kuro = list.filter(s => s.kurohon).sort(within);
+  const rest = list.filter(s => !s.kurohon).sort(within);
+  const p = state.patById[pat];
+  $("count").textContent = `${list.length}曲` + (p ? `（${p.desc}）` : "");
+  const cur = currentId();
+  const item = s => {
+    const extra = pat && pat !== "blues"
+      ? `、${s.features.patterns[pat]}回（32小節あたり${s.features.patterns_per32[pat]}）` : "";
+    return `<li><a href="#/song/${esc(s.id)}"${s.id === cur ? ' aria-current="page"' : ""}>
+      <div class="t">${star(s)}${esc(s.title)}</div>
+      <div class="m">${esc(pretty(s.key))}、${esc(s.features.form)}（${s.features.bars}小節）${extra}</div></a></li>`;
+  };
+  $("songs").innerHTML =
+    (kuro.length ? `<li class="group">★ 黒本1・2の収録曲（${kuro.length}曲）</li>` + kuro.map(item).join("") : "") +
+    (rest.length ? `<li class="group">その他の曲（${rest.length}曲）</li>` + rest.map(item).join("") : "");
+}
+
+function renderDetail(id) {
+  const s = state.byId[id];
+  $("app").classList.toggle("show-detail", !!s);
+  if (!s) {
+    $("detail").innerHTML = `<p class="empty">左の一覧から曲を選んでください。</p>`;
+    return;
+  }
+  const f = s.features, minor = !!s.relative_major, rel = minor && state.relView;
+  const facts = [
+    ["キー", pretty(s.key) + (minor ? `（平行長調 ${pretty(s.relative_major)}）` : "")],
+    ["フォーム", `${f.form}（${f.bars}小節）`],
+    ["一時転調", f.tonicized_keys.length ? f.tonicized_keys.map(pretty).join("、") : "なし"],
+  ];
+  // この曲に含まれる進行（押すとその進行の曲一覧へ）
+  const chips = state.patterns.filter(p => f.patterns[p.id]).map(p =>
+    `<a href="#" data-pat="${p.id}">${esc(p.name)}${p.id === "blues" ? "" : `<b>${f.patterns[p.id]}</b>`}</a>`).join("");
+
+  const sections = s.sections.map(sec => `
+    <div class="section"><span class="mark">${esc(sec.label)}</span>
+      <span class="stype">${{ head: "テーマ", intro: "イントロ", verse: "ヴァース", coda: "コーダ" }[sec.type] || sec.type}、${sec.bar_count}小節</span></div>
+    <div class="chart-wrap"><div class="bars">${sec.bars.map(bar => `<div class="bar">${bar.map(c => {
+      const d = rel ? c.d_rel : c.d, fn = rel ? c.f_rel : c.f;
+      return `<div class="ch"><div class="sym">${esc(pretty(c.c))}</div>
+        <div class="deg">${esc(pretty(d))}</div>${fn ? `<div class="fn">${esc(pretty(fn))}</div>` : ""}</div>`;
+    }).join("")}</div>`).join("")}</div></div>`).join("");
+
+  const simHtml = (state.similar[s.id] || []).map(x => {
+    const t = state.byId[x.id];
+    return `<li><div class="top"><a href="#/song/${esc(x.id)}">${star(t)}${esc(t.title)}</a>
+      <span class="score">類似度 ${Math.round(x.score * 100)}%、${esc(pretty(t.key))}</span></div>
+      <div class="pats">${x.shared.map(p => esc(pretty(p))).join("　/　")}</div></li>`;
+  }).join("");
+
+  $("detail").innerHTML = `<div class="detail">
+    <a class="back" href="#/">← 一覧に戻る</a>
+    <h2>${star(s)}${esc(s.title)}${s.kurohon ? `<span class="kuro">黒本${s.kurohon.join("・")}</span>` : ""}</h2>
+    <p class="composer">${esc((s.composer || []).join(", "))}</p>
+    <dl class="facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
+    ${chips ? `<div class="pchips">${chips}</div>` : ""}
+    <div class="toolbar">
+      ${minor ? `<span>度数の基準
+        <span class="seg"><button data-rel="0" aria-pressed="${!rel}">主音</button><button data-rel="1" aria-pressed="${rel}">平行長調</button></span></span>` : ""}
+      <label><input type="checkbox" id="fnToggle" ${state.showFn ? "checked" : ""}> 機能を表示</label>
+    </div>
+    <div class="${state.showFn ? "" : "hide-fn"}" id="chart">${sections}</div>
+    <h3>進行が似ている曲</h3><ul class="similar">${simHtml}</ul>
+  </div>`;
+  $("detail").scrollTop = 0;
+  $("detail").querySelectorAll("[data-rel]").forEach(b => b.onclick = () => { state.relView = b.dataset.rel === "1"; renderDetail(id); });
+  $("detail").querySelectorAll("[data-pat]").forEach(a => a.onclick = e => {
+    e.preventDefault(); $("pat").value = a.dataset.pat; $("q").value = ""; $("form").value = ""; renderList();
+  });
+  $("fnToggle").onchange = e => { state.showFn = e.target.checked; $("chart").classList.toggle("hide-fn", !state.showFn); };
+}
+
+const currentId = () => (location.hash.match(/^#\/song\/(.+)$/) || [])[1];
+function route() { renderDetail(currentId()); renderList(); }
+
+load().then(({ analyzed, similar }) => {
+  state.songs = analyzed.songs; state.patterns = analyzed.patterns; state.similar = similar;
+  state.songs.forEach(s => state.byId[s.id] = s);
+  state.patterns.forEach(p => { state.patById[p.id] = p; $("pat").add(new Option(`${p.name}が多い曲`, p.id)); });
+  // フォーム：5曲以上ある形式を曲数の多い順に。残りは「その他」にまとめる
+  const fc = {};
+  state.songs.forEach(s => fc[s.features.form] = (fc[s.features.form] || 0) + 1);
+  const mains = Object.entries(fc).filter(([, n]) => n >= 5).sort((a, b) => b[1] - a[1]);
+  state.mainForms = new Set(mains.map(([f]) => f));
+  mains.forEach(([f, n]) => $("form").add(new Option(`${f === "A" ? "A（区切りなし）" : f}（${n}曲）`, f)));
+  const other = state.songs.length - mains.reduce((t, [, n]) => t + n, 0);
+  $("form").add(new Option(`その他の形式（${other}曲）`, "_other"));
+  ["q", "pat", "form"].forEach(k => $(k).addEventListener("input", renderList));
+  window.addEventListener("hashchange", route);
+  route();
+}).catch(e => { $("detail").innerHTML = `<p class="empty">${esc(e.message)}</p>`; });
+</script>
+</body>
+</html>
